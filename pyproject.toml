@@ -25,7 +25,7 @@ dev = ["pyinstaller>=6"]
 label-sheet = "label_sheet.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/<your-name>/label-sheet"
+Homepage = "https://github.com/Imensama/label-sheet"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
