@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "label-sheet"
-version = "1.0.0"
-description = "把 PDF 页面里的表格单元按份数排进 A4 预切不干胶（默认 5×9，40×30mm）"
+version = "1.1.0"
+description = "把 PDF 版面里的一块或一段文字，按份数排进 A4 预切不干胶（14 种常见规格）"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -14,6 +14,7 @@ keywords = ["pdf", "label", "sticker", "a4", "printing", "layout"]
 dependencies = [
     "pdfplumber>=0.11,<1.0",
     "pypdf>=4.0",
+    "Pillow>=9",
 ]
 
 [project.optional-dependencies]

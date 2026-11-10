@@ -12,7 +12,9 @@ import unittest
 
 from pypdf import PdfReader
 
-from label_sheet.builder import build_all, collect_stickers
+from label_sheet.builder import build_all, collect_entries, collect_stickers
+from label_sheet.presets import by_key
+from label_sheet.textlabel import parse_text_block
 from label_sheet.config import GridSpec
 from label_sheet.parser import parse_pdf
 
@@ -66,6 +68,29 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(len(rows), 10)
         self.assertTrue(all(1 <= int(r["cell"]) <= 45 for r in rows))
         self.assertEqual(sum(1 for r in rows if int(r["qty"]) == 4), 4)
+
+
+    def test_build_text_labels(self):
+        """纯文字标签：一行一张，|2 出两张，按预设尺寸排。"""
+        items = parse_text_block("急件 A-01 |2\n返修件\n2026-11-09 出货")
+        self.assertEqual(len(items), 3)
+        grid = by_key("24格 70×37（3×8）").to_grid()
+        tmp = os.path.join(os.path.dirname(HERE), "label_sheet_test_text")
+        os.makedirs(tmp, exist_ok=True)
+        self.addCleanup(shutil.rmtree, tmp, True)
+        outs = build_all([], grid, tmp, base_name="t", text_items=items)
+        prod = PdfReader(outs["production"])
+        self.assertEqual(len(prod.pages), 1)          # 4 张 → 1 版（24 格）
+        with open(outs["manifest"], encoding="utf-8-sig") as fh:
+            rows = list(csv.DictReader(fh))
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(r["kind"] == "文字" for r in rows))
+
+    def test_mixed_entries_order(self):
+        items = parse_text_block("A\nB")
+        entries = collect_entries([self.parsed], items)
+        self.assertEqual(len(entries), 10 + 2)
+        self.assertTrue(entries[-1].__class__.__name__ == "TextSticker")
 
 
 if __name__ == "__main__":

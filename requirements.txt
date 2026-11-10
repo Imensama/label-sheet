@@ -1,3 +1,4 @@
 # 运行期依赖（全部宽松协议，可商用）
 pdfplumber>=0.11,<1.0      # MIT     解析 PDF 文字/线条坐标
 pypdf>=4.0                 # BSD-3   矢量裁剪、拼版输出
+Pillow>=9                 # MIT-CMU 文字标签渲染（画字、转 1bit 位图）

@@ -15,7 +15,7 @@ class TestParseCardText(unittest.TestCase):
     def test_standard_card(self):
         text = (
             "文件名称:DEMO-1001 支架（示例）\n"
-            "尺寸:120*80*6\n"
+            "包络尺寸:120*80*6\n"
             "序号:1\n"
             "数量:2\n"
             "颜色:灰色喷涂"
@@ -28,8 +28,8 @@ class TestParseCardText(unittest.TestCase):
         self.assertTrue(f["color"].startswith("灰色"))
 
     def test_value_before_colon(self):
-        """有些PDF写成“数量 1:”“颜色 不锈钢:”。"""
-        text = ("文件名称:DEMO-1002 盖板\n图号:\n尺寸:60*40*2\n"
+        """有些模板写成“数量 1:”“颜色 不锈钢:”。"""
+        text = ("文件名称:DEMO-1002 盖板\n图号:\n包络尺寸:60*40*2\n"
                 "颜色 白色喷涂:\n数量 10:")
         f = parse_card_text(text)
         self.assertEqual(f["name"], "DEMO-1002 盖板")

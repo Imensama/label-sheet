@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
-"""命令行入口：python -m label_sheet [-o 输出目录] PDF1.pdf PDF2.pdf ..."""
+"""命令行入口。
+
+用法示例：
+    python -m label_sheet 输入.zip -o 输出目录
+    python -m label_sheet 表单.pdf --preset "24格 70×37（3×8）"
+    python -m label_sheet --text-file 清单.txt -o 输出目录
+    python -m label_sheet 表单.pdf --text "急件 |2" --text "返修件"
+    python -m label_sheet --list-presets
+"""
 
 from __future__ import annotations
 
@@ -16,6 +24,8 @@ from . import __version__, APP_NAME
 from .builder import build_all
 from .config import GridSpec
 from .parser import parse_many
+from .presets import DEFAULT_PRESET_KEY, PRESETS, by_key, keys
+from .textlabel import parse_text_block
 
 
 def _safe_extract_zip(zip_path: str, dest: str) -> List[str]:
@@ -82,29 +92,55 @@ def expand_inputs(paths: Sequence[str]) -> List[str]:
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="label-sheet",
-        description=f"{APP_NAME} {__version__} —— 把PDF 自动排成 A4 不干胶标签",
+        description=f"{APP_NAME} {__version__} —— 把 PDF 版面或一段文字自动排成 A4 不干胶标签",
+        epilog="规格预设：" + "；".join(keys()),
     )
-    ap.add_argument("inputs", nargs="+", help="PDF、文件夹或 zip（可多个）")
-    ap.add_argument("-o", "--out", default=None, help="输出目录（默认：第一个 PDF 旁的“标签输出”文件夹）")
-    ap.add_argument("--name", default="PDF标签", help="输出文件名前缀（默认：PDF标签）")
-    ap.add_argument("--first-page-only", action="store_true", help="只取每份 PDF 的第 1 页")
-    ap.add_argument("--no-proof", action="store_true", help="不生成刀线校样版")
-    ap.add_argument("--no-csv", action="store_true", help="不生成标签清单 CSV")
-    ap.add_argument("--config", default=None, help="读取网格参数 JSON")
+    ap.add_argument("inputs", nargs="*", help="PDF、文件夹或 zip（可多个；只用文字标签时可省略）")
+    ap.add_argument("-o", "--out", default=None, help="输出目录（默认：第一个 PDF 旁的“标签输出”）")
+    ap.add_argument("--name", default="标签", help="输出文件名前缀（默认：标签）")
+
+    # 版式
+    ap.add_argument("--preset", default=None,
+                    help=f'胶贴规格预设名（默认 “{DEFAULT_PRESET_KEY}”，用 --list-presets 看全部）')
+    ap.add_argument("--list-presets", action="store_true", help="列出所有胶贴规格后退出")
+    ap.add_argument("--config", default=None, help="读取网格参数 JSON（优先于 --preset）")
     ap.add_argument("--save-config", default=None, help="把当前网格参数另存为 JSON")
-    ap.add_argument("--cols", type=int, default=None, help="列数（默认 5）")
-    ap.add_argument("--rows", type=int, default=None, help="行数（默认 9）")
+    ap.add_argument("--cols", type=int, default=None, help="列数")
+    ap.add_argument("--rows", type=int, default=None, help="行数")
     ap.add_argument("--cell", default=None, help="单格宽x高 mm，如 40x30")
     ap.add_argument("--pitch", default=None, help="节距 宽x高 mm，如 41.5x32")
-    ap.add_argument("--margin-top", type=float, default=None, help="上边距 mm（默认 6）")
+    ap.add_argument("--margin-top", type=float, default=None, help="上边距 mm")
     ap.add_argument("--inset", type=float, default=None, help="内容安全边 mm（默认 2）")
+
+    # 内容
+    ap.add_argument("--first-page-only", action="store_true", help="每份 PDF 只取第 1 页")
+    ap.add_argument("--text", action="append", default=[], metavar="TEXT",
+                    help="直接给一行文字标签（可重复）；行尾写 |2 表示印 2 张")
+    ap.add_argument("--text-file", default=None, help="从文本文件读文字标签（一行一张）")
+    ap.add_argument("--text-align", choices=["center", "left", "right"], default="center",
+                    help="文字对齐方式（默认居中）")
+    ap.add_argument("--text-uniform", action="store_true",
+                    help="所有文字标签用同一字号（取放得下的最小那档），排版更整齐")
+    ap.add_argument("--text-max-pt", type=float, default=48.0, help="文字最大字号（pt，默认 48）")
+
+    ap.add_argument("--no-proof", action="store_true", help="不生成刀线校样版")
+    ap.add_argument("--no-csv", action="store_true", help="不生成标签清单 CSV")
     ap.add_argument("-q", "--quiet", action="store_true", help="少打印日志")
     ap.add_argument("-V", "--version", action="version", version=f"{APP_NAME} {__version__}")
     return ap
 
 
 def grid_from_args(args) -> GridSpec:
-    grid = GridSpec.load(args.config) if args.config else GridSpec()
+    if args.config:
+        grid = GridSpec.load(args.config)
+    elif args.preset:
+        try:
+            grid = by_key(args.preset).to_grid()
+        except KeyError:
+            raise SystemExit(f"没有这个规格：{args.preset}\n可用：{', '.join(keys())}")
+    else:
+        grid = by_key(DEFAULT_PRESET_KEY).to_grid()
+
     data = grid.to_dict()
     if args.cols:
         data["cols"] = args.cols
@@ -123,11 +159,28 @@ def grid_from_args(args) -> GridSpec:
     return GridSpec.from_dict(data)
 
 
+def collect_text_items(args) -> list:
+    block = "\n".join(args.text or [])
+    if args.text_file:
+        with open(args.text_file, "r", encoding="utf-8-sig") as fh:
+            block = (block + "\n" + fh.read()) if block else fh.read()
+    return parse_text_block(block)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
+
+    if args.list_presets:
+        print(f"{APP_NAME} {__version__} 支持的胶贴规格：\n")
+        for p in PRESETS:
+            g = p.to_grid()
+            print(f"  {p.key:<26s} 节距 {g.pitch_x:g}×{g.pitch_y:g}  上边距 {g.margin_top:.1f}")
+        return 0
+
     files = expand_inputs(args.inputs)
-    if not files:
-        print("没找到任何 PDF。", file=sys.stderr)
+    text_items = collect_text_items(args)
+    if not files and not text_items:
+        print("没有输入内容：给几个 PDF / 文件夹 / zip，或用 --text / --text-file 给文字。", file=sys.stderr)
         return 2
 
     grid = grid_from_args(args)
@@ -135,11 +188,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         grid.save(args.save_config)
         print(f"网格参数已保存：{args.save_config}")
 
-    out_dir = args.out or os.path.join(os.path.dirname(files[0]), "标签输出")
+    base_dir = os.path.dirname(files[0]) if files else os.getcwd()
+    out_dir = args.out or os.path.join(base_dir, "标签输出")
     log = (lambda *a, **k: None) if args.quiet else (lambda msg: print(msg))
 
     log(f"{APP_NAME} {__version__}")
-    log(f"共 {len(files)} 份 PDF → {out_dir}")
+    log(f"规格 {grid.cols}×{grid.rows}（{grid.cols * grid.rows} 格，{grid.cell_w:g}×{grid.cell_h:g}mm）")
+    if files:
+        log(f"共 {len(files)} 份 PDF → {out_dir}")
 
     pdfs = []
     for i, f in enumerate(files, 1):
@@ -149,20 +205,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         for page in info.pages:
             for w in page.warnings:
                 print(f"    ! {w}", file=sys.stderr)
-        if args.first_page_only:
-            log(f"    第 1 页：{len(info.pages[0].cards) if info.pages else 0} 个卡片 / {info.pages[0].stickers if info.pages else 0} 张贴纸")
-        else:
-            log(f"    {len(info.pages)} 页：{len(info.cards)} 个卡片 / {info.stickers} 张贴纸")
+        log(f"    {len(info.pages)} 页：{len(info.cards)} 个卡片 / {info.stickers} 张贴纸")
 
-    stickers = sum(p.stickers for p in pdfs)
-    if stickers == 0:
-        print("没有解析到任何卡片，请确认 PDF 是“PDF 卡片”格式。", file=sys.stderr)
+    if text_items:
+        n = sum(i.copies for i in text_items)
+        log(f"文字标签：{len(text_items)} 条 / {n} 张")
+
+    total = sum(p.stickers for p in pdfs) + sum(i.copies for i in text_items)
+    if total == 0:
+        print("没有可排的内容。", file=sys.stderr)
         return 3
 
     try:
         outputs = build_all(
             pdfs, grid, out_dir, base_name=args.name,
-            make_proof=not args.no_proof, make_csv=not args.no_csv, log=log,
+            make_proof=not args.no_proof, make_csv=not args.no_csv,
+            text_items=text_items, log=log,
+            text_align=args.text_align, text_uniform=args.text_uniform,
+            text_max_pt=args.text_max_pt,
         )
     except Exception as exc:  # pragma: no cover
         print(f"生成失败：{exc}", file=sys.stderr)
@@ -172,7 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for key, path in outputs.items():
         log(f"  {key:10s} {path}")
     if not args.quiet:
-        print(f"\n共 {stickers} 张贴纸，已生成到：{out_dir}")
+        print(f"\n共 {total} 张贴纸，已生成到：{out_dir}")
     return 0
 
 

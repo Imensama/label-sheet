@@ -2,7 +2,7 @@
 """PyInstaller 打包入口：带参数走命令行，不带参数开图形界面。
 
 窗口模式下没有控制台，这里把 stdout/stderr 重定向到日志文件，
-异常时弹窗提示并把 traceback 写进日志，方便用户反馈问题。
+异常时弹窗提示并把 traceback 写进日志，方便使用者反馈问题。
 """
 
 from __future__ import annotations

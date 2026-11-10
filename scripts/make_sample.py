@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""生成 examples/sample.pdf（示例PDF）与 docs/example.png（README 配图）。
+"""生成 examples/sample.pdf（示例样张）与 docs/example.png（README 配图）。
 
 只用开发环境里的 PyMuPDF 造样例，程序本身不依赖它。
 """
@@ -30,7 +30,7 @@ CARDS = [
 doc = fitz.open()
 page = doc.new_page(width=W, height=H)
 
-title = "示例PDF（DEMO-001）"
+title = "示例表格（DEMO-001）"
 page.insert_text((W / 2 - 120, 26), title, fontname="china-s", fontsize=15)
 
 cell_w = (W - 40) / COLS
@@ -45,7 +45,7 @@ for i, (name, size, seq, qty, color, shape) in enumerate(CARDS):
     page.draw_rect(rect, color=(0, 0, 0), width=0.6)
 
     ty = y0 + 10
-    for line in [f"文件名称:{name}", f"尺寸:{size}", f"序号:{seq}", f"数量:{qty}", f"颜色:{color}"]:
+    for line in [f"文件名称:{name}", f"包络尺寸:{size}", f"序号:{seq}", f"数量:{qty}", f"颜色:{color}"]:
         page.insert_text((x0 + 5, ty), line, fontname="china-s", fontsize=8)
         ty += 12
 

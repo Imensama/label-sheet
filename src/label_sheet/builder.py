@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""排版与输出：把每张卡片按“数量”复制，等比塞进 A4 不干胶的 5×9 小格。
+"""排版与输出：把卡片 / 文字标签按“数量”复制，等比塞进 A4 不干胶的小格。
 
-实现要点
---------
-用 pypdf 把源 PDF 的每一页做成一个 Form XObject（BBox = 整页），
-再在 A4 目标页上用「裁剪路径 + 变换矩阵 + Do」把需要的区域画到指定小格里。
-这样同一个源页只内嵌一份数据，输出体积小、内容仍是矢量。
+两种内容：
+1) PDF 卡片（矢量）：把源 PDF 每页做成一个 Form XObject，用「裁剪路径 + 缩放矩阵 + Do」画进小格，
+   同一个源页只内嵌一份数据，输出体积小、内容仍是矢量。
+2) 文字标签（位图）：一段文字自动折行、自动选字号后渲染成 600dpi 位图再贴进小格，
+   好处是不用内嵌中文字体（那会让 PDF 大十几 MB）。
 """
 
 from __future__ import annotations
@@ -13,8 +13,9 @@ from __future__ import annotations
 import csv
 import os
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
+from PIL import Image
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import (
     ArrayObject,
@@ -27,7 +28,11 @@ from pypdf.generic import (
 )
 
 from .config import GridSpec, MM_TO_PT
+from .imagex import add_image
 from .parser import Card, PdfCards
+from .textlabel import TextItem, find_cjk_font, fit_size, render_text_label
+
+TEXT_DPI = 600          # 文字标签的渲染分辨率
 
 
 @dataclass
@@ -43,6 +48,21 @@ class Sticker:
     @property
     def total_copies(self) -> int:
         return self.card.qty
+
+
+@dataclass
+class TextSticker:
+    """一张文字贴纸。"""
+
+    item: TextItem
+    copy_no: int = 1
+
+    @property
+    def total_copies(self) -> int:
+        return self.item.copies
+
+
+Entry = Union[Sticker, TextSticker]
 
 
 def collect_stickers(pdfs: Sequence[PdfCards]) -> List[Sticker]:
@@ -62,6 +82,19 @@ def collect_stickers(pdfs: Sequence[PdfCards]) -> List[Sticker]:
                         )
                     )
     return out
+
+
+def collect_text_stickers(items: Sequence[TextItem]) -> List[TextSticker]:
+    out: List[TextSticker] = []
+    for item in items:
+        for k in range(max(1, item.copies)):
+            out.append(TextSticker(item=item, copy_no=k + 1))
+    return out
+
+
+def collect_entries(pdfs: Sequence[PdfCards], items: Sequence[TextItem] = ()) -> List[Entry]:
+    """PDF 卡片排前面，文字标签接在后面。"""
+    return list(collect_stickers(pdfs)) + list(collect_text_stickers(items))
 
 
 class _FormCache:
@@ -117,6 +150,47 @@ class _FormCache:
         return self._forms[key]
 
 
+class _TextCache:
+    """文字标签：每个 item 只渲染一次，按目标尺寸出图。"""
+
+    def __init__(self, writer: PdfWriter, font_path: Optional[str] = None,
+                 align: str = "center", max_pt: float = 48.0, dpi: int = TEXT_DPI,
+                 uniform: bool = False) -> None:
+        self.writer = writer
+        self.font_path = font_path or find_cjk_font()
+        self.align = align
+        self.max_pt = max_pt
+        self.dpi = dpi
+        self.uniform = uniform
+        self.fixed_pt: Optional[float] = None
+        self._cache: Dict[Tuple[int, int, int], Tuple[str, object]] = {}
+
+    def prepare(self, items: Sequence[TextItem], width_pt: float, height_pt: float) -> None:
+        """统一字号模式：先算一遍每张能用的最大字号，取最小值，全批复用。"""
+        if not self.uniform or not items:
+            return
+        w_px = max(16, int(round(width_pt / 72.0 * self.dpi)))
+        h_px = max(16, int(round(height_pt / 72.0 * self.dpi)))
+        sizes = [fit_size(i.text, w_px, h_px, font_path=self.font_path, max_pt=self.max_pt)
+                 for i in items]
+        self.fixed_pt = min(sizes) if sizes else None
+
+    def get(self, item: TextItem, width_pt: float, height_pt: float) -> Tuple[str, object]:
+        w_px = max(16, int(round(width_pt / 72.0 * self.dpi)))
+        h_px = max(16, int(round(height_pt / 72.0 * self.dpi)))
+        key = (item.index, w_px, h_px)
+        if key in self._cache:
+            return self._cache[key]
+        img: Image.Image = render_text_label(
+            item.text, w_px, h_px, font_path=self.font_path,
+            align=self.align, max_pt=self.max_pt, fixed_pt=self.fixed_pt,
+        )
+        ref, _w, _h = add_image(self.writer, img)
+        name = f"/Tx{len(self._cache)}"
+        self._cache[key] = (name, ref)
+        return self._cache[key]
+
+
 def _placement(clip: Sequence[float], cell: Sequence[float], inset_mm: float):
     """算出「源区域 → 目标小格」的缩放和位移（含安全边、居中）。
 
@@ -145,26 +219,39 @@ def _num(v: float) -> FloatObject:
 
 
 def build_pdf(
-    stickers: Sequence[Sticker],
+    entries: Sequence[Entry],
     grid: GridSpec,
     output_path: str,
     knife_lines: bool = False,
     progress=None,
+    text_font: Optional[str] = None,
+    text_align: str = "center",
+    text_max_pt: float = 48.0,
+    text_uniform: bool = False,
 ) -> List[dict]:
     """生成一个 A4 标签 PDF，返回逐张标签的清单行。"""
     writer = PdfWriter()
-    cache = _FormCache(writer)
+    forms = _FormCache(writer)
+    texts = _TextCache(writer, font_path=text_font, align=text_align,
+                       max_pt=text_max_pt, uniform=text_uniform)
     page_w, page_h = grid.frame_pt()
     per_sheet = grid.per_sheet
-    n_sheets = max(1, (len(stickers) + per_sheet - 1) // per_sheet)
+    n_sheets = max(1, (len(entries) + per_sheet - 1) // per_sheet)
     manifest: List[dict] = []
+
+    # 统一字号模式需要先知道每张的字号
+    text_items = [e.item for e in entries if isinstance(e, TextSticker)]
+    if text_items:
+        first_avail_w = grid.cell_w * MM_TO_PT - 2 * grid.inset * MM_TO_PT
+        first_avail_h = grid.cell_h * MM_TO_PT - 2 * grid.inset * MM_TO_PT
+        texts.prepare(text_items, first_avail_w, first_avail_h)
 
     for sheet in range(n_sheets):
         page = writer.add_blank_page(width=page_w, height=page_h)
         xobjects = DictionaryObject()
         page[NameObject("/Resources")] = DictionaryObject(
             {
-                NameObject("/ProcSet"): ArrayObject([NameObject("/PDF")]),
+                NameObject("/ProcSet"): ArrayObject([NameObject("/PDF"), NameObject("/ImageB")]),
                 NameObject("/XObject"): xobjects,
             }
         )
@@ -183,44 +270,61 @@ def build_pdf(
                     ([], b"Q"),
                 ]
 
+        inset = grid.inset * MM_TO_PT
         for slot in range(per_sheet):
             idx = sheet * per_sheet + slot
-            if idx >= len(stickers):
+            if idx >= len(entries):
                 break
-            st = stickers[idx]
+            entry = entries[idx]
             cell = grid.cell_pt(slot)
-            placed = _placement(st.card.clip_pdf, cell, grid.inset)
-            if placed is None:
-                continue
-            scale, tx, ty, target = placed
-            name, ref = cache.get(st.pdf_path, st.page_index)
-            xobjects[NameObject(name)] = ref
+            avail = (cell[0] + inset, cell[1] + inset, cell[2] - inset, cell[3] - inset)
 
-            # 裁剪框必须用「内容区」而不是整格，否则安全边里会漏出相邻内容
-            ops += [
-                ([], b"q"),
-                ([_num(target[0]), _num(target[1]), _num(target[2] - target[0]), _num(target[3] - target[1])], b"re"),
-                ([], b"W"),
-                ([], b"n"),
-                ([_num(scale), FloatObject(0), FloatObject(0), _num(scale), _num(tx), _num(ty)], b"cm"),
-                ([NameObject(name)], b"Do"),
-                ([], b"Q"),
-            ]
-            manifest.append(
-                {
-                    "sheet": sheet + 1,
-                    "cell": slot + 1,
-                    "row": slot // grid.cols + 1,
-                    "col": slot % grid.cols + 1,
-                    "file": os.path.basename(st.pdf_path),
-                    "pdf_page": st.page_no,
-                    "seq": st.card.seq if st.card.seq is not None else "",
-                    "name": st.card.name,
-                    "qty": st.card.qty,
-                    "copy": st.copy_no,
+            if isinstance(entry, Sticker):
+                placed = _placement(entry.card.clip_pdf, cell, grid.inset)
+                if placed is None:
+                    continue
+                scale, tx, ty, target = placed
+                name, ref = forms.get(entry.pdf_path, entry.page_index)
+                xobjects[NameObject(name)] = ref
+
+                # 裁剪框必须用「内容区」而不是整格，否则安全边里会漏出相邻内容
+                ops += [
+                    ([], b"q"),
+                    ([_num(target[0]), _num(target[1]), _num(target[2] - target[0]),
+                      _num(target[3] - target[1])], b"re"),
+                    ([], b"W"),
+                    ([], b"n"),
+                    ([_num(scale), FloatObject(0), FloatObject(0), _num(scale), _num(tx), _num(ty)], b"cm"),
+                    ([NameObject(name)], b"Do"),
+                    ([], b"Q"),
+                ]
+                manifest.append({
+                    "sheet": sheet + 1, "cell": slot + 1,
+                    "row": slot // grid.cols + 1, "col": slot % grid.cols + 1,
+                    "kind": "PDF",
+                    "file": os.path.basename(entry.pdf_path), "pdf_page": entry.page_no,
+                    "seq": entry.card.seq if entry.card.seq is not None else "",
+                    "name": entry.card.name, "qty": entry.card.qty, "copy": entry.copy_no,
                     "scale_pct": round(scale * 100, 1),
-                }
-            )
+                })
+            else:  # TextSticker
+                name, ref = texts.get(entry.item, avail[2] - avail[0], avail[3] - avail[1])
+                xobjects[NameObject(name)] = ref
+                ops += [
+                    ([], b"q"),
+                    ([_num(avail[2] - avail[0]), FloatObject(0), FloatObject(0),
+                      _num(avail[3] - avail[1]), _num(avail[0]), _num(avail[1])], b"cm"),
+                    ([NameObject(name)], b"Do"),
+                    ([], b"Q"),
+                ]
+                manifest.append({
+                    "sheet": sheet + 1, "cell": slot + 1,
+                    "row": slot // grid.cols + 1, "col": slot % grid.cols + 1,
+                    "kind": "文字",
+                    "file": "", "pdf_page": "",
+                    "seq": "", "name": entry.item.text.replace("\n", " "),
+                    "qty": entry.item.copies, "copy": entry.copy_no, "scale_pct": "",
+                })
 
         content = ContentStream(None, writer)
         content.operations.extend(ops)
@@ -231,7 +335,7 @@ def build_pdf(
 
     writer.add_metadata(
         {
-            "/Title": "A4 不干胶 PDF标签" + ("（刀线校样版）" if knife_lines else "（生产版）"),
+            "/Title": "A4 不干胶 标签" + ("（刀线校样版）" if knife_lines else "（生产版）"),
             "/Creator": "label-sheet",
             "/Producer": "label-sheet (pypdf)",
         }
@@ -243,7 +347,8 @@ def build_pdf(
 
 
 def write_manifest(manifest: Sequence[dict], csv_path: str) -> None:
-    fields = ["sheet", "cell", "row", "col", "file", "pdf_page", "seq", "name", "qty", "copy", "scale_pct"]
+    fields = ["sheet", "cell", "row", "col", "kind", "file", "pdf_page",
+              "seq", "name", "qty", "copy", "scale_pct"]
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
@@ -254,35 +359,47 @@ def build_all(
     pdfs: Sequence[PdfCards],
     grid: GridSpec,
     out_dir: str,
-    base_name: str = "PDF标签",
+    base_name: str = "标签",
     make_proof: bool = True,
     make_csv: bool = True,
+    text_items: Sequence[TextItem] = (),
     progress=None,
     log=None,
+    text_font: Optional[str] = None,
+    text_align: str = "center",
+    text_max_pt: float = 48.0,
+    text_uniform: bool = False,
 ) -> Dict[str, str]:
     """一次性生成生产版 / 校样版 / 清单，返回各文件路径。"""
     os.makedirs(out_dir, exist_ok=True)
-    stickers = collect_stickers(pdfs)
-    if not stickers:
-        raise ValueError("没有解析到任何卡片，请检查 PDF 是否是“PDF 卡片”格式")
+    entries = collect_entries(pdfs, text_items)
+    if not entries:
+        raise ValueError("没有任何可排的内容：请提供 PDF，或在文字框里粘贴几行文字")
 
     outputs: Dict[str, str] = {}
-    total_sheets = max(1, (len(stickers) + grid.per_sheet - 1) // grid.per_sheet)
+    total_sheets = max(1, (len(entries) + grid.per_sheet - 1) // grid.per_sheet)
 
     def _p(prefix):
         return (lambda done, total: progress(prefix, done, total)) if progress else None
 
     prod = os.path.join(out_dir, f"{base_name}_生产版.pdf")
     if log:
-        log(f"排 {len(stickers)} 张贴纸，共 {total_sheets} 版 → {os.path.basename(prod)}")
-    manifest = build_pdf(stickers, grid, prod, knife_lines=False, progress=_p("生产版"))
+        n_pdf = sum(1 for e in entries if isinstance(e, Sticker))
+        n_txt = len(entries) - n_pdf
+        log(f"排 {len(entries)} 张贴纸（PDF {n_pdf} + 文字 {n_txt}），共 {total_sheets} 版 → "
+            f"{os.path.basename(prod)}")
+    manifest = build_pdf(entries, grid, prod, knife_lines=False, progress=_p("生产版"),
+                         text_font=text_font, text_align=text_align,
+                         text_max_pt=text_max_pt, text_uniform=text_uniform)
     outputs["production"] = prod
 
     if make_proof:
         proof = os.path.join(out_dir, f"{base_name}_刀线校样版.pdf")
         if log:
             log(f"生成刀线校样版 → {os.path.basename(proof)}")
-        build_pdf(stickers, grid, proof, knife_lines=True, progress=_p("校样版"))
+        build_pdf(entries, grid, proof, knife_lines=True, progress=_p("校样版"),
+                  text_font=text_font, text_align=text_align,
+                  text_max_pt=text_max_pt, text_uniform=text_uniform)
         outputs["proof"] = proof
 
     if make_csv:
