@@ -29,6 +29,7 @@ from pypdf.generic import (
 
 from .config import GridSpec, MM_TO_PT
 from .imagex import add_image
+from .i18n import tr
 from .parser import Card, PdfCards
 from .textlabel import TextItem, find_cjk_font, fit_size, render_text_label
 
@@ -301,7 +302,7 @@ def build_pdf(
                 manifest.append({
                     "sheet": sheet + 1, "cell": slot + 1,
                     "row": slot // grid.cols + 1, "col": slot % grid.cols + 1,
-                    "kind": "PDF",
+                    "kind": tr("builder.kind.pdf"),
                     "file": os.path.basename(entry.pdf_path), "pdf_page": entry.page_no,
                     "seq": entry.card.seq if entry.card.seq is not None else "",
                     "name": entry.card.name, "qty": entry.card.qty, "copy": entry.copy_no,
@@ -320,7 +321,7 @@ def build_pdf(
                 manifest.append({
                     "sheet": sheet + 1, "cell": slot + 1,
                     "row": slot // grid.cols + 1, "col": slot % grid.cols + 1,
-                    "kind": "文字",
+                    "kind": tr("builder.kind.text"),
                     "file": "", "pdf_page": "",
                     "seq": "", "name": entry.item.text.replace("\n", " "),
                     "qty": entry.item.copies, "copy": entry.copy_no, "scale_pct": "",
@@ -335,7 +336,7 @@ def build_pdf(
 
     writer.add_metadata(
         {
-            "/Title": "A4 不干胶 标签" + ("（刀线校样版）" if knife_lines else "（生产版）"),
+            "/Title": tr("builder.title.proof" if knife_lines else "builder.title.production"),
             "/Creator": "label-sheet",
             "/Producer": "label-sheet (pypdf)",
         }
@@ -359,7 +360,7 @@ def build_all(
     pdfs: Sequence[PdfCards],
     grid: GridSpec,
     out_dir: str,
-    base_name: str = "标签",
+    base_name: Optional[str] = None,
     make_proof: bool = True,
     make_csv: bool = True,
     text_items: Sequence[TextItem] = (),
@@ -374,7 +375,8 @@ def build_all(
     os.makedirs(out_dir, exist_ok=True)
     entries = collect_entries(pdfs, text_items)
     if not entries:
-        raise ValueError("没有任何可排的内容：请提供 PDF，或在文字框里粘贴几行文字")
+        raise ValueError(tr("builder.err.empty"))
+    base_name = base_name or tr("out.default_base")
 
     outputs: Dict[str, str] = {}
     total_sheets = max(1, (len(entries) + grid.per_sheet - 1) // grid.per_sheet)
@@ -382,31 +384,31 @@ def build_all(
     def _p(prefix):
         return (lambda done, total: progress(prefix, done, total)) if progress else None
 
-    prod = os.path.join(out_dir, f"{base_name}_生产版.pdf")
+    prod = os.path.join(out_dir, tr("out.production", base=base_name))
     if log:
         n_pdf = sum(1 for e in entries if isinstance(e, Sticker))
         n_txt = len(entries) - n_pdf
-        log(f"排 {len(entries)} 张贴纸（PDF {n_pdf} + 文字 {n_txt}），共 {total_sheets} 版 → "
-            f"{os.path.basename(prod)}")
-    manifest = build_pdf(entries, grid, prod, knife_lines=False, progress=_p("生产版"),
+        log(tr("builder.log.place", total=len(entries), pdf=n_pdf, text=n_txt,
+               sheets=total_sheets, file=os.path.basename(prod)))
+    manifest = build_pdf(entries, grid, prod, knife_lines=False, progress=_p("production"),
                          text_font=text_font, text_align=text_align,
                          text_max_pt=text_max_pt, text_uniform=text_uniform)
     outputs["production"] = prod
 
     if make_proof:
-        proof = os.path.join(out_dir, f"{base_name}_刀线校样版.pdf")
+        proof = os.path.join(out_dir, tr("out.proof", base=base_name))
         if log:
-            log(f"生成刀线校样版 → {os.path.basename(proof)}")
-        build_pdf(entries, grid, proof, knife_lines=True, progress=_p("校样版"),
+            log(tr("builder.log.proof", file=os.path.basename(proof)))
+        build_pdf(entries, grid, proof, knife_lines=True, progress=_p("proof"),
                   text_font=text_font, text_align=text_align,
                   text_max_pt=text_max_pt, text_uniform=text_uniform)
         outputs["proof"] = proof
 
     if make_csv:
-        csv_path = os.path.join(out_dir, f"{base_name}_标签清单.csv")
+        csv_path = os.path.join(out_dir, tr("out.manifest", base=base_name))
         write_manifest(manifest, csv_path)
         outputs["manifest"] = csv_path
         if log:
-            log(f"标签清单 → {os.path.basename(csv_path)}")
+            log(tr("builder.log.manifest", file=os.path.basename(csv_path)))
 
     return outputs

@@ -10,13 +10,20 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import List, Optional
 
-from . import __version__, APP_NAME
+from . import __version__
 from .builder import build_all
 from .cli import expand_inputs
 from .config import GridSpec
+from .i18n import (
+    available_languages,
+    current_language,
+    language_name,
+    set_language,
+    tr,
+)
 from .parser import parse_many
-from .presets import DEFAULT_PRESET_KEY, PRESETS, by_key, match_grid
-from .textlabel import find_cjk_font, parse_text_block
+from .presets import DEFAULT_PRESET_KEY, PRESETS, by_key
+from .textlabel import parse_text_block
 
 try:  # 可选：装了 tkinterdnd2 就能拖拽
     from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore
@@ -29,16 +36,20 @@ except Exception:  # pragma: no cover
 
 
 class App:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, lang: Optional[str] = None) -> None:
         self.root = root
+        if lang:
+            set_language(lang)
         self.files: List[str] = []
         self.out_dir = tk.StringVar()
         self.first_page_only = tk.BooleanVar(value=False)
         self.make_proof = tk.BooleanVar(value=True)
         self.make_csv = tk.BooleanVar(value=True)
-        self.base_name = tk.StringVar(value="标签")
-        self.status = tk.StringVar(value="就绪：添加 PDF 或在下面粘贴文字，然后点“开始生成”")
+        self.base_name = tk.StringVar(value=tr("out.default_base"))
+        self.status = tk.StringVar(value=tr("gui.status.ready"))
         self.preset_key = tk.StringVar(value=DEFAULT_PRESET_KEY)
+        self.preset_display = tk.StringVar(value=by_key(DEFAULT_PRESET_KEY).title)
+        self.lang_display = tk.StringVar(value=language_name(current_language()))
         self.text_align = tk.StringVar(value="center")
         self.text_uniform = tk.BooleanVar(value=False)
         self.grid_vars = {
@@ -55,7 +66,7 @@ class App:
         self.worker: Optional[threading.Thread] = None
         self._loading_preset = False
 
-        root.title(f"{APP_NAME} v{__version__}")
+        root.title(f"{tr('app.name')} v{__version__}")
         root.geometry("1020x900")
         root.minsize(900, 760)
         self._build_ui()
@@ -68,7 +79,7 @@ class App:
         pad = {"padx": 8, "pady": 4}
 
         # 顶部：文件列表
-        files_frame = ttk.LabelFrame(self.root, text="① PDF 文件（可选）")
+        files_frame = ttk.LabelFrame(self.root, text=tr("gui.file_frame"))
         files_frame.pack(fill="both", expand=False, **pad)
 
         list_wrap = ttk.Frame(files_frame)
@@ -81,78 +92,82 @@ class App:
 
         btns = ttk.Frame(files_frame)
         btns.pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Button(btns, text="添加 PDF…", command=self.add_pdfs).pack(side="left")
-        ttk.Button(btns, text="添加文件夹…", command=self.add_folder).pack(side="left", padx=6)
-        ttk.Button(btns, text="添加压缩包…", command=self.add_zip).pack(side="left")
-        ttk.Button(btns, text="清空", command=self.clear_files).pack(side="right")
-        ttk.Button(btns, text="移除选中", command=self.remove_selected).pack(side="right", padx=6)
+        ttk.Button(btns, text=tr("gui.btn.add_pdf"), command=self.add_pdfs).pack(side="left")
+        ttk.Button(btns, text=tr("gui.btn.add_folder"), command=self.add_folder).pack(side="left", padx=6)
+        ttk.Button(btns, text=tr("gui.btn.add_zip"), command=self.add_zip).pack(side="left")
+        ttk.Button(btns, text=tr("gui.btn.clear"), command=self.clear_files).pack(side="right")
+        ttk.Button(btns, text=tr("gui.btn.remove"), command=self.remove_selected).pack(side="right", padx=6)
 
         # 文字标签
-        text_frame = ttk.LabelFrame(self.root, text="② 文字标签（一行一张，会自动换行/自动选字号）")
+        text_frame = ttk.LabelFrame(self.root, text=tr("gui.text_frame"))
         text_frame.pack(fill="both", expand=True, **pad)
         self.text_box = tk.Text(text_frame, height=6, wrap="word", undo=True)
         self.text_box.pack(fill="both", expand=True, padx=8, pady=(6, 2))
-        hint = ("提示：一行 = 一张标签；行尾写 |2 或 ×2 表示这张印 2 份（例：急件 A-01 |2）。"
-                "留空就只排 PDF 里的卡片。")
-        ttk.Label(text_frame, text=hint, foreground="#666").pack(anchor="w", padx=10, pady=(0, 6))
+        ttk.Label(text_frame, text=tr("gui.hint.text"), foreground="#666",
+                  wraplength=940, justify="left").pack(anchor="w", padx=10, pady=(0, 6))
         trow = ttk.Frame(text_frame)
         trow.pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Label(trow, text="对齐：").pack(side="left")
-        for label, val in (("居中", "center"), ("左对齐", "left"), ("右对齐", "right")):
+        ttk.Label(trow, text=tr("gui.align.label")).pack(side="left")
+        for label, val in ((tr("gui.align.center"), "center"),
+                           (tr("gui.align.left"), "left"),
+                           (tr("gui.align.right"), "right")):
             ttk.Radiobutton(trow, text=label, variable=self.text_align, value=val).pack(side="left")
-        ttk.Checkbutton(trow, text="统一字号（整批取最小那档，看起来更整齐）",
+        ttk.Checkbutton(trow, text=tr("gui.text_uniform"),
                         variable=self.text_uniform).pack(side="left", padx=16)
 
         # 选项
-        opt = ttk.LabelFrame(self.root, text="③ 生成选项")
+        opt = ttk.LabelFrame(self.root, text=tr("gui.options_frame"))
         opt.pack(fill="x", **pad)
 
         row1 = ttk.Frame(opt)
         row1.pack(fill="x", padx=8, pady=(6, 2))
-        ttk.Label(row1, text="PDF 页码：").pack(side="left")
-        ttk.Radiobutton(row1, text="全部页", variable=self.first_page_only, value=False).pack(side="left")
-        ttk.Radiobutton(row1, text="仅第 1 页", variable=self.first_page_only, value=True).pack(side="left", padx=(6, 16))
-        ttk.Checkbutton(row1, text="同时生成刀线校样版", variable=self.make_proof).pack(side="left")
-        ttk.Checkbutton(row1, text="生成标签清单 CSV", variable=self.make_csv).pack(side="left", padx=12)
+        ttk.Label(row1, text=tr("gui.pdf_pages")).pack(side="left")
+        ttk.Radiobutton(row1, text=tr("gui.pages.all"), variable=self.first_page_only,
+                        value=False).pack(side="left")
+        ttk.Radiobutton(row1, text=tr("gui.pages.first_only"), variable=self.first_page_only,
+                        value=True).pack(side="left", padx=(6, 16))
+        ttk.Checkbutton(row1, text=tr("gui.make_proof"), variable=self.make_proof).pack(side="left")
+        ttk.Checkbutton(row1, text=tr("gui.make_csv"), variable=self.make_csv).pack(side="left", padx=12)
 
         row2 = ttk.Frame(opt)
         row2.pack(fill="x", padx=8, pady=2)
-        ttk.Label(row2, text="输出目录：").pack(side="left")
+        ttk.Label(row2, text=tr("gui.out_dir")).pack(side="left")
         ttk.Entry(row2, textvariable=self.out_dir).pack(side="left", fill="x", expand=True, padx=4)
-        ttk.Button(row2, text="浏览…", command=self.choose_out_dir).pack(side="left")
+        ttk.Button(row2, text=tr("gui.btn.browse"), command=self.choose_out_dir).pack(side="left")
 
         row3 = ttk.Frame(opt)
         row3.pack(fill="x", padx=8, pady=2)
-        ttk.Label(row3, text="文件名前缀：").pack(side="left")
+        ttk.Label(row3, text=tr("gui.base_name")).pack(side="left")
         ttk.Entry(row3, textvariable=self.base_name, width=20).pack(side="left", padx=(4, 16))
-        ttk.Label(row3, text="（输出“前缀_生产版.pdf”）", foreground="#666").pack(side="left")
+        ttk.Label(row3, text=tr("gui.base_name_hint"), foreground="#666").pack(side="left")
 
         # 版式参数
-        adv = ttk.LabelFrame(self.root, text="④ 胶贴规格与版式参数（换胶纸批次时才需要调）")
+        adv = ttk.LabelFrame(self.root, text=tr("gui.advanced_frame"))
         adv.pack(fill="x", **pad)
         prow = ttk.Frame(adv)
         prow.pack(fill="x", padx=8, pady=(6, 2))
-        ttk.Label(prow, text="规格预设：").pack(side="left")
-        self.preset_cb = ttk.Combobox(prow, textvariable=self.preset_key, state="readonly",
-                                      values=[p.key for p in PRESETS], width=30)
+        ttk.Label(prow, text=tr("gui.preset.label")).pack(side="left")
+        self.preset_cb = ttk.Combobox(prow, textvariable=self.preset_display, state="readonly",
+                                      values=[p.title for p in PRESETS], width=30)
         self.preset_cb.pack(side="left", padx=4)
-        self.preset_cb.bind("<<ComboboxSelected>>", lambda e: self._apply_preset(self.preset_key.get()))
-        ttk.Label(prow, text="（选中后下面的格子尺寸会自动填好，也可以再手动改）",
+        self.preset_cb.bind("<<ComboboxSelected>>", self._on_preset_selected)
+        ttk.Label(prow, text=tr("gui.preset.hint"),
                   foreground="#666").pack(side="left")
 
         grid = ttk.Frame(adv)
         grid.pack(fill="x", padx=8, pady=6)
         specs = [
-            ("列数", "cols", 4), ("行数", "rows", 4), ("格宽", "cell_w", 6),
-            ("格高", "cell_h", 6), ("列节距", "pitch_x", 6), ("行节距", "pitch_y", 6),
-            ("上边距", "margin_top", 6), ("安全边", "inset", 6),
+            (tr("gui.grid.cols"), "cols", 4), (tr("gui.grid.rows"), "rows", 4),
+            (tr("gui.grid.cell_w"), "cell_w", 6), (tr("gui.grid.cell_h"), "cell_h", 6),
+            (tr("gui.grid.pitch_x"), "pitch_x", 6), (tr("gui.grid.pitch_y"), "pitch_y", 6),
+            (tr("gui.grid.margin_top"), "margin_top", 6), (tr("gui.grid.inset"), "inset", 6),
         ]
         for i, (label, key, width) in enumerate(specs):
             ttk.Label(grid, text=label).grid(row=0, column=i * 2, sticky="e", padx=(6, 2))
             ttk.Entry(grid, textvariable=self.grid_vars[key], width=width).grid(row=0, column=i * 2 + 1, sticky="w")
 
         # 日志
-        logf = ttk.LabelFrame(self.root, text="⑤ 运行日志")
+        logf = ttk.LabelFrame(self.root, text=tr("gui.log_frame"))
         logf.pack(fill="both", expand=True, **pad)
         self.log_text = tk.Text(logf, height=6, wrap="word", state="disabled")
         self.log_text.pack(fill="both", expand=True, padx=8, pady=6)
@@ -160,9 +175,17 @@ class App:
         bottom = ttk.Frame(self.root)
         bottom.pack(fill="x", padx=8, pady=(0, 10))
         ttk.Label(bottom, textvariable=self.status, foreground="#333").pack(side="left")
-        self.open_btn = ttk.Button(bottom, text="打开输出文件夹", command=self.open_out_dir, state="disabled")
-        self.open_btn.pack(side="right")
-        self.start_btn = ttk.Button(bottom, text="开始生成", command=self.start)
+        self.lang_cb = ttk.Combobox(
+            bottom, textvariable=self.lang_display, state="readonly", width=8,
+            values=[language_name(code) for code in available_languages()],
+        )
+        self.lang_cb.pack(side="right", padx=(8, 0))
+        self.lang_cb.bind("<<ComboboxSelected>>", self._on_lang_selected)
+        ttk.Label(bottom, text=tr("gui.lang.label")).pack(side="right")
+        self.open_btn = ttk.Button(bottom, text=tr("gui.btn.open_out"),
+                                   command=self.open_out_dir, state="disabled")
+        self.open_btn.pack(side="right", padx=(8, 0))
+        self.start_btn = ttk.Button(bottom, text=tr("gui.btn.start"), command=self.start)
         self.start_btn.pack(side="right", padx=8)
         self.progress = ttk.Progressbar(bottom, mode="determinate", length=200)
         self.progress.pack(side="right", padx=8)
@@ -180,8 +203,52 @@ class App:
         paths = self.root.tk.splitlist(event.data)
         self._add_paths(list(paths))
 
+    # ---------------- 语言 ----------------
+    def _on_lang_selected(self, _event=None) -> None:
+        wanted = self.lang_display.get()
+        code = next((c for c in available_languages() if language_name(c) == wanted), None)
+        if not code or code == current_language():
+            self.lang_display.set(language_name(current_language()))
+            return
+        self._switch_language(code)
+
+    def _switch_language(self, code: str) -> None:
+        """即时重绘界面：保留文件列表、文字框和参数。"""
+        text = self.text_box.get("1.0", "end-1c")
+        open_state = str(self.open_btn.cget("state"))
+        old_base = tr("out.default_base")
+        old_dir = tr("out.default_dir")
+        set_language(code)
+        for child in self.root.winfo_children():
+            child.destroy()
+        self._build_ui()
+        self.root.title(f"{tr('app.name')} v{__version__}")
+        self.lang_display.set(language_name(current_language()))
+        self.preset_display.set(by_key(self.preset_key.get()).title)
+        if self.base_name.get().strip() == old_base:
+            self.base_name.set(tr("out.default_base"))
+        out_dir = self.out_dir.get().strip()
+        if out_dir and os.path.basename(os.path.normpath(out_dir)) == old_dir:
+            self.out_dir.set(os.path.join(os.path.dirname(out_dir), tr("out.default_dir")))
+        self.listbox.delete(0, "end")
+        for path in self.files:
+            self.listbox.insert("end", os.path.basename(path))
+        if text:
+            self.text_box.insert("1.0", text)
+        if open_state == "normal":
+            self.open_btn.configure(state="normal")
+        self.progress.configure(value=0, maximum=100)
+        self.status.set(tr("gui.status.ready"))
+        self._log(tr("gui.log.lang_switched", lang=language_name(code)))
+        self._setup_dnd()
+
     # ---------------- 规格 ----------------
-    def _apply_preset(self, key: str) -> None:
+    def _on_preset_selected(self, _event=None) -> None:
+        idx = self.preset_cb.current()
+        if idx >= 0:
+            self._apply_preset(PRESETS[idx].key)
+
+    def _apply_preset(self, key: str, log: bool = True) -> None:
         try:
             preset = by_key(key)
         except KeyError:
@@ -193,34 +260,39 @@ class App:
         for k in ("cell_w", "cell_h", "pitch_x", "pitch_y", "margin_top", "inset"):
             self.grid_vars[k].set(f"{getattr(grid, k):g}")
         self._loading_preset = False
-        self._log(f"规格：{preset.title}")
+        self.preset_key.set(preset.key)
+        self.preset_display.set(preset.title)
+        if log:
+            self._log(tr("gui.log.preset", title=preset.title))
 
     # ---------------- 文件管理 ----------------
     def _add_paths(self, paths: List[str]) -> None:
         found = expand_inputs(paths)
         if not found:
-            messagebox.showwarning(APP_NAME, "这些路径里没找到 PDF。")
+            messagebox.showwarning(tr("app.name"), tr("gui.warn.no_pdf"))
             return
         for f in found:
             if f not in self.files:
                 self.files.append(f)
                 self.listbox.insert("end", os.path.basename(f))
         if not self.out_dir.get() and self.files:
-            self.out_dir.set(os.path.join(os.path.dirname(self.files[0]), "标签输出"))
-        self._log(f"已添加 {len(found)} 份 PDF，共 {len(self.files)} 份。")
+            self.out_dir.set(os.path.join(os.path.dirname(self.files[0]), tr("out.default_dir")))
+        self._log(tr("gui.log.added", added=len(found), total=len(self.files)))
 
     def add_pdfs(self) -> None:
-        paths = filedialog.askopenfilenames(title="选择 PDF 文件", filetypes=[("PDF 文件", "*.pdf")])
+        paths = filedialog.askopenfilenames(title=tr("gui.dialog.choose_pdf"),
+                                            filetypes=[(tr("gui.filetype.pdf"), "*.pdf")])
         if paths:
             self._add_paths(list(paths))
 
     def add_folder(self) -> None:
-        path = filedialog.askdirectory(title="选择包含 PDF 的文件夹")
+        path = filedialog.askdirectory(title=tr("gui.dialog.choose_folder"))
         if path:
             self._add_paths([path])
 
     def add_zip(self) -> None:
-        path = filedialog.askopenfilename(title="选择压缩包", filetypes=[("ZIP 压缩包", "*.zip")])
+        path = filedialog.askopenfilename(title=tr("gui.dialog.choose_zip"),
+                                          filetypes=[(tr("gui.filetype.zip"), "*.zip")])
         if path:
             self._add_paths([path])
 
@@ -234,7 +306,7 @@ class App:
         self.files.clear()
 
     def choose_out_dir(self) -> None:
-        path = filedialog.askdirectory(title="选择输出目录")
+        path = filedialog.askdirectory(title=tr("gui.dialog.choose_out"))
         if path:
             self.out_dir.set(path)
 
@@ -244,7 +316,7 @@ class App:
             try:
                 os.startfile(path)  # type: ignore[attr-defined]
             except Exception:
-                messagebox.showinfo(APP_NAME, f"输出目录：{path}")
+                messagebox.showinfo(tr("app.name"), tr("gui.info.out_dir", path=path))
 
     # ---------------- 运行 ----------------
     def _grid(self) -> GridSpec:
@@ -255,38 +327,39 @@ class App:
             data["cols"] = int(data["cols"])
             data["rows"] = int(data["rows"])
         except ValueError as exc:
-            raise ValueError(f"版式参数里有个不是数字：{exc}") from exc
+            raise ValueError(tr("gui.err.grid_number", error=exc)) from exc
         spec = GridSpec.from_dict(data)
         if spec.cols <= 0 or spec.rows <= 0:
-            raise ValueError("列数/行数必须大于 0")
+            raise ValueError(tr("gui.err.grid_positive"))
         return spec
 
     def start(self) -> None:
         text = self.text_box.get("1.0", "end")
         items = parse_text_block(text)
         if not self.files and not items:
-            messagebox.showwarning(APP_NAME, "没有内容：请添加 PDF，或在文字框里粘贴几行文字。")
+            messagebox.showwarning(tr("app.name"), tr("gui.warn.no_content"))
             return
         out_dir = self.out_dir.get().strip()
         if not out_dir:
             base = os.path.dirname(self.files[0]) if self.files else os.getcwd()
-            out_dir = os.path.join(base, "标签输出")
+            out_dir = os.path.join(base, tr("out.default_dir"))
             self.out_dir.set(out_dir)
         try:
             grid = self._grid()
         except ValueError as exc:
-            messagebox.showerror(APP_NAME, str(exc))
+            messagebox.showerror(tr("app.name"), str(exc))
             return
 
         self.start_btn.configure(state="disabled")
         self.open_btn.configure(state="disabled")
+        self.lang_cb.configure(state="disabled")
         self.progress.configure(value=0, maximum=100)
-        self.status.set("正在解析…")
+        self.status.set(tr("gui.status.parsing"))
         files = list(self.files)
         first_only = self.first_page_only.get()
         proof = self.make_proof.get()
         csv_on = self.make_csv.get()
-        name = self.base_name.get().strip() or "标签"
+        name = self.base_name.get().strip() or tr("out.default_base")
         align = self.text_align.get()
         uniform = self.text_uniform.get()
 
@@ -294,7 +367,8 @@ class App:
             try:
                 pdfs = []
                 for i, f in enumerate(files, 1):
-                    self.q.put(("log", f"[{i}/{len(files)}] 解析 {os.path.basename(f)}"))
+                    self.q.put(("log", tr("log.parsing", i=i, n=len(files),
+                                          name=os.path.basename(f))))
                     info = parse_many([f], first_page_only=first_only)[0]
                     for page in info.pages:
                         for w in page.warnings:
@@ -303,7 +377,7 @@ class App:
                     self.q.put(("progress", i, max(1, len(files))))
                 n_pdf = sum(p.stickers for p in pdfs)
                 n_txt = sum(i.copies for i in items)
-                self.q.put(("log", f"内容：PDF {n_pdf} 张 + 文字 {n_txt} 张"))
+                self.q.put(("log", tr("gui.log.counts", pdf=n_pdf, text=n_txt)))
                 outputs = build_all(
                     pdfs, grid, out_dir, base_name=name,
                     make_proof=proof, make_csv=csv_on,
@@ -330,21 +404,26 @@ class App:
                 elif kind == "progress":
                     done, total = item[1], item[2]
                     self.progress.configure(maximum=max(1, total), value=done)
-                    self.status.set(f"处理中… {done}/{total}")
+                    self.status.set(tr("gui.status.processing", done=done, total=total))
                 elif kind == "done":
                     outs = item[1]
-                    self.status.set("完成")
+                    self.status.set(tr("gui.status.done"))
                     self.open_btn.configure(state="normal")
                     self.start_btn.configure(state="normal")
-                    self._log("完成，输出：")
+                    self.lang_cb.configure(state="readonly")
+                    self._log(tr("gui.log.done"))
                     for k, v in outs.items():
                         self._log(f"  {k}: {v}")
-                    messagebox.showinfo(APP_NAME, "生成完成！\n\n" + "\n".join(os.path.basename(v) for v in outs.values()))
+                    messagebox.showinfo(
+                        tr("app.name"),
+                        tr("gui.msg.done", files="\n".join(os.path.basename(v) for v in outs.values())),
+                    )
                 elif kind == "error":
-                    self.status.set("出错")
+                    self.status.set(tr("gui.status.error"))
                     self.start_btn.configure(state="normal")
+                    self.lang_cb.configure(state="readonly")
                     self._log(item[1])
-                    messagebox.showerror(APP_NAME, str(item[1]).splitlines()[0])
+                    messagebox.showerror(tr("app.name"), str(item[1]).splitlines()[0])
         except queue.Empty:
             pass
         self.root.after(120, self._poll_queue)
@@ -356,7 +435,9 @@ class App:
         self.log_text.configure(state="disabled")
 
 
-def main() -> None:
+def main(lang: Optional[str] = None) -> None:
+    if lang:
+        set_language(lang)
     root = TkinterDnD.Tk() if _HAS_DND else tk.Tk()  # type: ignore[misc]
     App(root)
     root.mainloop()

@@ -8,6 +8,7 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+$env:PYTHONPATH = Join-Path $root "src"
 
 Write-Host "== 1/3 安装依赖 ==" -ForegroundColor Cyan
 python -m pip install --upgrade pip

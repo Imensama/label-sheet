@@ -1,6 +1,6 @@
 # 第三方组件与许可
 
-本项目（label-sheet）以 **MIT** 协议发布。运行期只依赖下面两个库，均为宽松协议，
+本项目（label-sheet）以 **MIT** 协议发布。运行期依赖下面几个库，均为宽松协议，
 可以随本项目一起打包、商用、二次分发。
 
 | 组件 | 版本要求 | 协议 | 用途 | 是否随 exe 分发 |
@@ -8,7 +8,7 @@
 | [pdfplumber](https://github.com/jsvine/pdfplumber) | >=0.11,<1.0 | MIT | 读取 PDF 文字/线条坐标，定位卡片 | 是 |
 | [pdfminer.six](https://github.com/pdfminer/pdfminer.six) | 由 pdfplumber 引入 | MIT | pdfplumber 的底层解析引擎 | 是 |
 | [pypdf](https://github.com/py-pdf/pypdf) | >=4.0 | BSD-3-Clause | 把源页做成 Form XObject、裁剪缩放、拼 A4 | 是 |
-| [Pillow](https://python-pillow.org/) | 由 pdfplumber 间接引入 | MIT-CMU | 图像处理（本工具不直接调用） | 视打包结果 |
+| [Pillow](https://python-pillow.org/) | >=9 | MIT-CMU | 文字标签排版、渲染 600dpi 位图 | 是 |
 | [tkinter / Tcl-Tk](https://docs.python.org/3/library/tkinter.html) | Python 自带 | PSF / BSD 类 | 图形界面 | 是 |
 | [PyInstaller](https://pyinstaller.org/) | >=6 | GPL-2.0-or-later **+ 打包例外** | 仅构建期把 Python 打成 exe | 引导器随 exe |
 

@@ -17,6 +17,8 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import pdfplumber
 
+from .i18n import tr
+
 # ---------------------------------------------------------------- 文本规则
 
 NAME_RE = re.compile(r"文件名称\s*[：:]?\s*([^\n]+)")
@@ -248,7 +250,7 @@ def parse_page(page, page_no: int, page_h_pt: float) -> PageCards:
     words = page.extract_words(x_tolerance=2, y_tolerance=3)
     anchors = [w for w in words if w["text"].startswith(ANCHOR)]
     if not anchors:
-        res.warnings.append(f"第 {page_no} 页没有找到“文件名称”卡片，已跳过")
+        res.warnings.append(tr("parser.warn.no_anchor", page=page_no))
         return res
 
     xs = _cluster([a["x0"] for a in anchors])
@@ -280,12 +282,12 @@ def parse_page(page, page_no: int, page_h_pt: float) -> PageCards:
         cell_lines = _group_lines(cell_words)
         picked = _card_lines(cell_lines, a)
         if not picked:
-            res.warnings.append(f"第 {page_no} 页第 {ri + 1} 行第 {ci + 1} 列疑似卡片，但定位不到字段行，已跳过")
+            res.warnings.append(tr("parser.warn.no_fields", page=page_no, row=ri + 1, col=ci + 1))
             continue
         text = "\n".join(t for t, _ in picked)
         fields = parse_card_text(text)
         if not fields["name"]:
-            res.warnings.append(f"第 {page_no} 页第 {ri + 1} 行第 {ci + 1} 列疑似卡片，但取不到名称，已跳过")
+            res.warnings.append(tr("parser.warn.no_name", page=page_no, row=ri + 1, col=ci + 1))
             continue
 
         # 内容包围盒：卡片字段文字 + 格内图形（排除表格线/外框）
@@ -299,7 +301,7 @@ def parse_page(page, page_no: int, page_h_pt: float) -> PageCards:
         # 兜底：完全没有图形时只按文字框裁
         content = _bbox_union(boxes)
         if content is None:
-            res.warnings.append(f"第 {page_no} 页 “{fields['name']}” 取不到内容区域，已跳过")
+            res.warnings.append(tr("parser.warn.no_content", page=page_no, name=fields["name"]))
             continue
 
         # 贴边裁剪：把紧贴格线的部分让开
@@ -313,7 +315,7 @@ def parse_page(page, page_no: int, page_h_pt: float) -> PageCards:
         if y1 > cell[3] - EDGE_PAD_PT:
             y1 = cell[3] - EDGE_PAD_PT
         if x1 - x0 < 5 or y1 - y0 < 5:
-            res.warnings.append(f"第 {page_no} 页 “{fields['name']}” 内容区域异常，已跳过")
+            res.warnings.append(tr("parser.warn.bad_box", page=page_no, name=fields["name"]))
             continue
 
         qty = fields["qty"] if fields["qty"] else 1
@@ -356,7 +358,8 @@ def parse_pdf(path: str, first_page_only: bool = False, progress=None) -> PdfCar
             try:
                 info = parse_page(page, idx + 1, page_h)
             except Exception as exc:                          # pragma: no cover
-                info = PageCards(page_no=idx + 1, warnings=[f"第 {idx + 1} 页解析失败：{exc}"])
+                info = PageCards(page_no=idx + 1,
+                                 warnings=[tr("parser.warn.page_failed", page=idx + 1, error=exc)])
             result.pages.append(info)
             if progress:
                 progress(idx + 1, len(pages))

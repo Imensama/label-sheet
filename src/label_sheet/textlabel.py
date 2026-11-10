@@ -16,7 +16,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-# 常见中文字体，按优先级找
+# 常见字体，按优先级找：先中文字体（中英都能显示），都没有再退到西文字体
 CJK_FONT_CANDIDATES = [
     r"C:\Windows\Fonts\msyh.ttc",      # 微软雅黑
     r"C:\Windows\Fonts\msyhbd.ttc",
@@ -25,6 +25,12 @@ CJK_FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/System/Library/Fonts/PingFang.ttc",
+    # 西文字体兜底：纯英文环境没装中文字体时，文字标签也不至于用 PIL 内置点阵字体
+    r"C:\Windows\Fonts\segoeui.ttf",
+    r"C:\Windows\Fonts\arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
 ]
 
 # 份数后缀：优先“|2”，其次“ ×2 / x2”（要求前面不是数字，避免把 “120×80×6” 当份数）

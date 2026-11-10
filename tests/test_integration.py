@@ -13,6 +13,7 @@ import unittest
 from pypdf import PdfReader
 
 from label_sheet.builder import build_all, collect_entries, collect_stickers
+from label_sheet.i18n import set_language
 from label_sheet.presets import by_key
 from label_sheet.textlabel import parse_text_block
 from label_sheet.config import GridSpec
@@ -26,6 +27,7 @@ SAMPLE = os.path.join(os.path.dirname(HERE), "examples", "sample.pdf")
 class TestIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        set_language("zh_CN")   # 断言里的 CSV kind 是中文，固定语言避免受系统语言影响
         cls.parsed = parse_pdf(SAMPLE)
 
     def test_cards(self):

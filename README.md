@@ -1,5 +1,7 @@
 # A4 标签排版（label-sheet）
 
+简体中文 | [English](README.en.md)
+
 把 **PDF 页面里的若干小块**，或**一段文字**，按份数排进 A4 预切不干胶的格子里，输出可直接打印的 PDF。
 
 两种输入：
@@ -8,7 +10,8 @@
    把这一格的内容原样抠出来、等比缩放进标签格，内容保持矢量（不是截图）。
 2. **一段文字** —— 一行一张，自动折行、自动选字号，渲染成 600dpi 位图。
 
-内置 14 种常见 A4 胶贴规格，也可自定义列数、格宽、节距、边距；Windows 下双击 exe 就能用，也能命令行批量跑。
+内置 14 种常见 A4 胶贴规格，也可自定义列数、格宽、节距、边距。
+界面支持中文 / English，命令行 `--lang zh|en`，默认跟随系统；Windows 下双击 exe 就能用，也能命令行批量跑。
 
 > 最初是为了摆脱琐碎手工排版的“案牍之劳形”。
 > 后来加了文字模式和胶贴规格。
@@ -18,27 +21,29 @@
 
 ## 功能
 
-- **按份数复制**：格子里读到 `数量 2` 就出 2 张，`数量 10` 出 10 张，同一张连排，方便分发
-- **矢量裁剪**：整格内容按矢量缩放入格，放大不糊
-- **文字标签用位图**：600dpi 1bit，不内嵌字体，45 张标签的 PDF 只有几十 KB
+- **按份数复制**：格子里读到“数量 2”就出 2 张，“数量 10”出 10 张，同一张连排，方便分发
+- **矢量裁剪**：整格内容按矢量缩放入格，放大不糊；文字标签用 600dpi 位图，不内嵌字体，PDF 只有几十 KB
 - **文字自动排版**：自动折行、自动选字号；对齐可选居中/左/右；可整批“统一字号”。
-  行尾写 `|2` 或 `×2` 表示这张印 2 份（`120×80×6` 这类尺寸不会被误判）
+  行尾写 `|2` 或 ` ×2` 表示这张印 2 份（`120×80×6` 这类尺寸不会被误判）
 - **两种内容可混排**：PDF 卡片在前，文字标签接在后面，一起填满一版
 - **一次出三个文件**：生产版（无刀线）、刀线校样版（浅灰刀线，试打对位）、标签清单 CSV
 - **内置常见规格**：下拉选中就把列数/格宽/节距/边距填好，再按实际胶纸微调
+- **中英双语**：界面右下角可即时切换，或命令行 `--lang zh|en`；规格名、按钮、提示、输出文件名都会跟着变
 - **输入支持 PDF / 文件夹 / ZIP**（中文文件名的 ZIP 会自动纠正编码）
 
-## PDF 卡片是怎么识别的
+## PDF 卡片模式是怎么认的
 
-- 以“文件名称”这类字段当**锚点**找到每一格，份数读“数量”字段
-- 一页有几列几行**不写死**，按锚点位置推断；表格线会被剔除，不会跟着缩进标签
-- 想换成别的模板：改 `parser.py` 顶部的字段名常量即可（细节见「技术要点」）
+- 以“文件名称”这类字段当**锚点**找卡片；份数读“数量”字段
+- 字段名写在 `src/label_sheet/parser.py` 顶部（`FIELD_LABELS` 和几个正则里），
+  换一套模板时改这几个常量即可，不用动排版逻辑
+- 一页有几列几行**不写死**，按锚点位置聚类推断；表格线会被识别并剔除，不会跟着缩进标签
+- 一格里没有锚点时，这张卡片会被跳过，并在日志里提示
 
 ## 内置胶贴规格
 
 | 预设 | 列×行 | 单格 |
 | --- | --- | --- |
-| 45 格（实测校准过） | 5×9 | 40 × 30 mm，节距 41.5×32 |
+| 45 格（实测量过的规格） | 5×9 | 40 × 30 mm，节距 41.5×32 |
 | 24 格 | 3×8 | 70 × 37 mm |
 | 21 格 | 3×7 | 70 × 42.3 mm |
 | 30 格 | 3×10 | 70 × 29.7 mm |
@@ -55,6 +60,8 @@
 
 > 每家胶纸的刀线会差 0.5~1mm。选中预设后先打一张“刀线校样版”，跟真胶纸透光叠对；
 > 不合适就改“行节距 / 上边距 / 安全边”三个数字重出。
+>
+> 命令行里也可以用稳定 id：`--preset 45`、`--preset 24`；英文名和旧版中文名同样能用。
 
 ## 三种用法
 
@@ -68,33 +75,43 @@
 ### 2. 源码运行
 
 ```bash
-git clone https://github.com/Imensama/label-sheet.git
+git clone https://github.com/<your-name>/label-sheet.git
 cd label-sheet
 pip install -r requirements.txt
-python run_gui.pyw      # Windows 图形界面
-python -m label_sheet   # 各平台通用（无参数即开界面）
+pip install -e .            # 让 python -m label_sheet 找到 src 下的包
+python run_gui.pyw          # Windows 图形界面
+python -m label_sheet     # 各平台通用（无参数即开界面）
 ```
 
+> 不想 `pip install -e .` 的话，在 PowerShell 里 `$env:PYTHONPATH="src"` 也能跑。
+
 ### 3. 命令行（适合批量 / 定时）
+
+> 以下命令在仓库根目录执行；源码运行时先 `pip install -e .`（或 `$env:PYTHONPATH="src"`）。
 
 ```bash
 # 表格型 PDF
 python -m label_sheet 输入.zip -o 输出目录
 python -m label_sheet 某个目录 --first-page-only --no-proof
-python -m label_sheet 表单.pdf --preset "24格 70×37（3×8）"
+python -m label_sheet 表单.pdf --preset 24
 
 # 纯文字（一行一张，|2 = 印两份）
 python -m label_sheet --text "急件 A-01 |2" --text "返修件" -o 输出目录
 python -m label_sheet --text-file 清单.txt --text-uniform
 
+# 英文界面（--lang en；不加则跟随系统）
+python -m label_sheet --lang en --text "URGENT A-01 |2" --text "REWORK" -o 输出目录
+python -m label_sheet --lang en --list-presets
+
 # 两者混排
-python -m label_sheet 表单.pdf --text "加急 |2" --preset "45格 40×30（5×9，常用）"
+python -m label_sheet 表单.pdf --text "加急 |2" --preset 45
 
 python -m label_sheet --list-presets        # 看所有规格
 python -m label_sheet --save-config g.json  # 存一套参数，下次 --config g.json
 ```
 
-`python -m label_sheet -h` 看全部参数。
+`python -m label_sheet -h` 看全部参数。`--preset` 可以用稳定 id（`45`、`24`…）、英文名，或旧版中文名，
+老脚本不用改。
 
 ## 界面怎么用
 
@@ -103,6 +120,8 @@ python -m label_sheet --save-config g.json  # 存一套参数，下次 --config 
 3. **③ 生成选项**：全部页 / 仅第 1 页；是否出刀线校样版和清单；输出目录
 4. **④ 规格与参数**：先选胶贴规格，尺寸自动填好，再按实际刀线微调
 5. 点 **开始生成**，完成后点“打开输出文件夹”
+6. 右下角 **语言 / Language** 下拉可在“中文 / English”之间即时切换，文件列表、文字和参数都会保留；
+   不选时按 `--lang` > 环境变量 `LC_ALL`/`LANG` > 系统语言 > 中文 的顺序决定
 
 ## 输出
 
@@ -111,6 +130,10 @@ python -m label_sheet --save-config g.json  # 存一套参数，下次 --config 
 | `*_生产版.pdf` | 直接上不干胶纸打印（无色标线） |
 | `*_刀线校样版.pdf` | 普通纸试打，和不干胶纸透光叠对，检查刀线对位 |
 | `*_标签清单.csv` | 每张标签在第几版第几格、来源（PDF/文字）、名称、数量、第几份 |
+
+> 文件名也跟着界面语言走：中文界面是 `*_生产版.pdf`、`*_刀线校样版.pdf`、`*_标签清单.csv`；
+> 英文界面是 `*_production.pdf`、`*_knife-proof.pdf`、`*_manifest.csv`。默认前缀 `标签` / `label`，
+> 默认输出目录 `标签输出` / `label-output`。
 
 ## 目录结构
 
@@ -123,6 +146,8 @@ label-sheet/
 │  ├─ textlabel.py   # 文字排版：切词、折行、自动选字号、渲染位图
 │  ├─ imagex.py      # 把位图写成 PDF 图像 XObject（1bit + Flate 压缩）
 │  ├─ builder.py     # 拼版输出：Form XObject / 图像 + 裁剪 + 缩放
+│  ├─ i18n.py        # 运行时多语言：JSON 语言包、系统语言识别、tr()
+│  ├─ locales/       # zh_CN.json / en_US.json
 │  ├─ cli.py         # 命令行
 │  ├─ gui.py         # 图形界面（tkinter）
 │  └─ __main__.py    # 有参数走 CLI，无参数开界面
@@ -140,14 +165,15 @@ label-sheet/
 - 文字输出用 **Pillow** 渲染成 600dpi 1bit 图，写成 `/Image` XObject（Flate 压缩）。
   不内嵌中文字体：标签很小，位图印出来和矢量几乎看不出差别，PDF 也不会膨胀十几 MB。
 - 表格线识别：细长且贯通整页的线判为格线剔除，避免把表格边框缩进标签。
-- 字段名与识别规则都在 `src/label_sheet/parser.py` 顶部：`FIELD_LABELS` 定义字段行，
-  名称 / 尺寸 / 数量各有一个正则；一格里没有锚点的会被跳过，并写进日志。
+- 多语言：两份 JSON 语言包，测试会校验 key 集合完全一致、占位符一致，并检查代码里用到的
+  `tr()` key 都存在；语言包缺失或缺 key 时回退中文并在日志里警告，不中断运行。
 
 ## 开发与打包
 
 ```bash
 pip install -r requirements.txt
-python -m unittest discover -s tests -t .
+pip install -e .
+python -m unittest discover -s tests -t .   # 48 个用例
 ```
 
 ```powershell
@@ -155,7 +181,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 # 产物：dist\标签排版.exe（单文件，约 36MB）
 ```
 
-或者用 GitHub Actions：打 tag（如 `v1.1.0`）后自动构建并上传 Release 附件。
+或者用 GitHub Actions：打 tag（如 `v1.2.0`）后自动构建并上传 Release 附件。
 
 ## 平台支持
 
@@ -163,7 +189,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 | --- | --- | --- |
 | Windows 10/11 | 主要支持，有 exe | 无 |
 | macOS | 源码可跑 | Python 3.9+（官网安装包自带 tkinter；Homebrew 需 `brew install python-tk`） |
-| Linux | 源码可跑 | `python3-tk`；文字模式另需中文字体（如 `fonts-wqy-microhei`） |
+| Linux | 源码可跑 | `python3-tk`；文字模式需要字体：英文用 DejaVu Sans，中文用 `fonts-wqy-microhei` |
 
 exe 是 Windows 专用；mac/Linux 用 `python -m label_sheet`。
 “打开输出文件夹”按钮在 mac/Linux 上暂时只会弹提示，不会真的打开文件管理器。

@@ -34,14 +34,32 @@ def _redirect_streams() -> None:
         sys.stderr = stream
 
 
-def _show_error(msg: str) -> None:
+def _language_from_argv():
+    for i, arg in enumerate(sys.argv):
+        if arg == "--lang" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if arg.startswith("--lang="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def _show_error(err: str) -> None:
+    try:
+        from label_sheet.i18n import set_language, tr
+
+        set_language(_language_from_argv())
+        title = tr("entry.error_title")
+        message = tr("entry.error_body", error=err)
+    except Exception:  # pragma: no cover - 包都坏了就退回双语提示
+        title = "标签排版 / Label Sheet"
+        message = f"程序出错了 / Something went wrong:\n\n{err}\n\n详细日志 / Details: label_sheet.log"
     try:
         import tkinter as tk
         from tkinter import messagebox
 
         root = tk.Tk()
         root.withdraw()
-        messagebox.showerror("标签排版", msg)
+        messagebox.showerror(title, message)
         root.destroy()
     except Exception:  # pragma: no cover
         pass
@@ -68,7 +86,7 @@ def main() -> int:
                 fh.write(tb + "\n")
         except Exception:
             pass
-        _show_error("程序出错了：\n\n" + tb.strip().splitlines()[-1] + "\n\n详细日志：label_sheet.log")
+        _show_error(tb.strip().splitlines()[-1])
         return 1
 
 

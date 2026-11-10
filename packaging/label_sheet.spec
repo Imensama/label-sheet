@@ -19,7 +19,7 @@ a = Analysis(
     [os.path.join(ROOT, "packaging", "entry.py")],
     pathex=[SRC],
     binaries=[],
-    datas=[],
+    datas=[(os.path.join(SRC, "label_sheet", "locales"), "label_sheet/locales")],
     hiddenimports=["tkinter", "tkinter.filedialog", "tkinter.messagebox", "tkinter.ttk"],
     hookspath=[],
     hooksconfig={},
