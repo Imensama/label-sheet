@@ -13,7 +13,6 @@ Windows 下双击 exe 就能用，也能命令行批量跑。
 
 > 最初是为了摆脱琐碎手工排版的“案牍之劳形”。
 > 后来加了文字模式和胶贴规格。
-> Python 包名仍叫 `label_sheet`，为兼容早期脚本没有改名。
 
 ![表格型 PDF 的效果](docs/example.png)
 ![文字标签的效果](docs/example-text.png)
