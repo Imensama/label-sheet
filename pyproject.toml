@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "label-sheet"
+version = "1.0.0"
+description = "把 PDF 页面里的表格单元按份数排进 A4 预切不干胶（默认 5×9，40×30mm）"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "label-sheet contributors" }]
+keywords = ["pdf", "label", "sticker", "a4", "printing", "layout"]
+dependencies = [
+    "pdfplumber>=0.11,<1.0",
+    "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+gui = ["tkinterdnd2>=0.3"]     # 想要拖拽入文件可选装
+dev = ["pyinstaller>=6"]
+
+[project.scripts]
+label-sheet = "label_sheet.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/<your-name>/label-sheet"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

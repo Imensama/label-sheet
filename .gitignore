@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+*.spec.bak
+
+# 打包 / 测试产物
+explode_label_test_*/
+explode_label_zip_*/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 运行产物
+*_生产版.pdf
+*_刀线校样版.pdf
+*_标签清单.csv
+标签输出/
+explode_label.log
