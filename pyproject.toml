@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "label-sheet"
-version = "1.2.0"
+version = "1.2.1"
 description = "把 PDF 版面里的一块或一段文字，按份数排进 A4 预切不干胶（14 种常见规格，中英双语）"
 readme = "README.md"
 requires-python = ">=3.9"

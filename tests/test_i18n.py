@@ -8,6 +8,7 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 from string import Formatter
+from unittest import mock
 
 from label_sheet import cli
 from label_sheet.i18n import (
@@ -75,6 +76,24 @@ class TestLanguagePacks(unittest.TestCase):
         code = set_language("xx_YY")
         self.assertIn(code, available_languages())
         self.assertTrue(load_pack(code))
+
+    def test_unknown_system_language_defaults_to_english(self):
+        from label_sheet import i18n
+
+        with mock.patch.object(i18n, "_env_language", return_value=None), \
+                mock.patch.object(i18n, "_system_language", return_value=None):
+            self.assertEqual(i18n.resolve_language(), "en_US")
+            self.assertEqual(i18n.set_language("fr_FR"), "en_US")
+        with mock.patch.object(i18n, "_env_language", return_value=None), \
+                mock.patch.object(i18n, "_system_language", return_value="ja_JP"):
+            self.assertEqual(i18n.resolve_language(), "en_US")
+
+    def test_system_chinese_stays_chinese(self):
+        from label_sheet import i18n
+
+        with mock.patch.object(i18n, "_env_language", return_value=None), \
+                mock.patch.object(i18n, "_system_language", return_value="zh_CN"):
+            self.assertEqual(i18n.resolve_language(), "zh_CN")
 
     def test_aliases(self):
         self.assertEqual(normalize_language("zh"), "zh_CN")

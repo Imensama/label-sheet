@@ -12,6 +12,7 @@ Two kinds of input:
 
 14 common A4 label presets are built in, and you can also set columns, cell size, pitch and margins yourself.
 On Windows, just double-click the exe; the command line is available for batch work.
+The UI defaults to the system language, and falls back to English when the system locale is neither Chinese nor English.
 
 > Originally built to escape the tedious hand-layout grind.
 > Text mode and label-size presets came later.
@@ -29,7 +30,7 @@ On Windows, just double-click the exe; the command line is available for batch w
 - **Three outputs per run**: production PDF (no knife lines), knife-line proof PDF (light gray lines for alignment checks), and a label list CSV
 - **Built-in presets**: pick one and the columns / cell size / pitch / margins are filled in; fine-tune them for your actual stock
 - **Inputs**: PDF, folder or ZIP (file names in Chinese ZIPs are decoded automatically)
-- **Bilingual UI (v1.2+)**: Chinese and English, switchable in the GUI or with `--lang zh|en`; the default follows the system language
+- **Bilingual UI (v1.2+)**: Chinese and English, switchable in the GUI or with `--lang zh|en`; the default follows the system language, and English is used when the system locale is neither Chinese nor English
 
 ## How PDF card detection works
 
@@ -124,7 +125,7 @@ the English name, or the old Chinese name, so existing scripts keep working.
 
 The language selector at the bottom right switches between **中文** and **English** immediately; files, text and
 grid settings are kept. Without a choice, the language follows `--lang` (if given), then `LC_ALL` / `LANG`,
-then the system locale, and finally Chinese.
+then the system locale; when the system locale is neither Chinese nor English, it uses English.
 
 ## Output
 
@@ -195,7 +196,7 @@ python -m PyInstaller packaging\label_sheet_onedir.spec --noconfirm
 # artifact: dist\标签排版\标签排版.exe
 ```
 
-Or use GitHub Actions: push a tag such as `v1.2.0` and the workflow builds and attaches the exe to the Release.
+Or use GitHub Actions: push a tag such as `v1.2.1` and the workflow builds and attaches the exe to the Release.
 
 ## Platform support
 

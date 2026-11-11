@@ -11,7 +11,8 @@
 2. **一段文字** —— 一行一张，自动折行、自动选字号，渲染成 600dpi 位图。
 
 内置 14 种常见 A4 胶贴规格，也可自定义列数、格宽、节距、边距。
-界面支持中文 / English，命令行 `--lang zh|en`，默认跟随系统；Windows 下双击 exe 就能用，也能命令行批量跑。
+界面支持中文 / English，命令行 `--lang zh|en`，默认跟随系统（系统语言不是中英时用英文）；
+Windows 下双击 exe 就能用，也能命令行批量跑。
 
 > 最初是为了摆脱琐碎手工排版的“案牍之劳形”。
 > 后来加了文字模式和胶贴规格。
@@ -121,7 +122,7 @@ python -m label_sheet --save-config g.json  # 存一套参数，下次 --config 
 4. **④ 规格与参数**：先选胶贴规格，尺寸自动填好，再按实际刀线微调
 5. 点 **开始生成**，完成后点“打开输出文件夹”
 6. 右下角 **语言 / Language** 下拉可在“中文 / English”之间即时切换，文件列表、文字和参数都会保留；
-   不选时按 `--lang` > 环境变量 `LC_ALL`/`LANG` > 系统语言 > 中文 的顺序决定
+   不选时按 `--lang` > 环境变量 `LC_ALL`/`LANG` > 系统语言；系统语言不是中文/英文时默认英文
 
 ## 输出
 
@@ -173,7 +174,7 @@ label-sheet/
 ```bash
 pip install -r requirements.txt
 pip install -e .
-python -m unittest discover -s tests -t .   # 48 个用例
+python -m unittest discover -s tests -t .   # 50 个用例
 ```
 
 ```powershell
@@ -181,7 +182,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 # 产物：dist\标签排版.exe（单文件，约 36MB）
 ```
 
-或者用 GitHub Actions：打 tag（如 `v1.2.0`）后自动构建并上传 Release 附件。
+或者用 GitHub Actions：打 tag（如 `v1.2.1`）后自动构建并上传 Release 附件。
 
 ## 平台支持
 

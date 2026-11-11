@@ -101,7 +101,7 @@
   "cli.help.no_csv": "不生成标签清单 CSV",
   "cli.help.quiet": "少打印日志",
   "cli.help.version": "显示版本号后退出",
-  "cli.help.lang": "界面语言：zh 或 en（默认跟随系统）",
+  "cli.help.lang": "界面语言：zh 或 en（默认跟随系统；系统语言不是中英时用英文）",
 
   "cli.err.unzip": "解压失败：{path}（{error}）",
   "cli.err.no_preset": "没有这个规格：{key}\n可用：{available}",

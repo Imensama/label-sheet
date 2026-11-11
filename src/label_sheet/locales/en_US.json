@@ -101,7 +101,7 @@
   "cli.help.no_csv": "Do not generate the label list CSV",
   "cli.help.quiet": "Print less output",
   "cli.help.version": "Show version and exit",
-  "cli.help.lang": "UI language: zh or en (default: system language)",
+  "cli.help.lang": "UI language: zh or en (default: system language; English for other locales)",
 
   "cli.err.unzip": "Failed to unzip {path}: {error}",
   "cli.err.no_preset": "Unknown preset: {key}\nAvailable: {available}",

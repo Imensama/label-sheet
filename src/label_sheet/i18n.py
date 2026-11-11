@@ -2,7 +2,7 @@
 """极简运行时多语言：JSON 语言包 + 系统语言识别 + ``tr()``。
 
 语言解析优先级：显式参数（``--lang`` / GUI 下拉）> 环境变量 ``LC_ALL`` / ``LANG`` /
-``LANGUAGE`` > 系统区域设置 > ``zh_CN``。
+``LANGUAGE`` > 系统区域设置；系统语言既不是中文也不是英文时，默认用英文。
 
 语言包缺失或某个 key 没翻译时，回退到 ``zh_CN`` 并往 stderr 打一条警告，不抛异常；
 这样即使打包时漏了 ``locales/*.json``，程序仍然能用，只是界面回到中文。
@@ -17,7 +17,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-DEFAULT_LANGUAGE = "zh_CN"
+DEFAULT_LANGUAGE = "zh_CN"       # 语言包缺失 / 缺 key 时的翻译回退
+FALLBACK_LANGUAGE = "en_US"      # 系统语言不是中文也不是英文时的界面默认
 SUPPORTED_LANGUAGES: Tuple[str, ...] = ("zh_CN", "en_US")
 LANGUAGE_NAMES: Dict[str, str] = {"zh_CN": "中文", "en_US": "English"}
 
@@ -130,10 +131,17 @@ def _system_language() -> Optional[str]:
 
 
 def resolve_language(explicit: Optional[str] = None) -> str:
-    """按“显式 > 环境变量 > 系统 > 默认”解析语言代码，并保证语言包存在。"""
+    """按“显式 > 环境变量 > 系统 > 英文”解析语言代码，并保证语言包存在。
+
+    系统语言识别不出来、或者既不是中文也不是英文时，用英文作为国际默认；
+    中文系统仍然是中文。
+    """
     if explicit is not None and normalize_language(explicit) is None:
         _warn_once(f"unsupported:{explicit}", f"不支持的语言：{explicit!r}，改用系统语言")
-    code = normalize_language(explicit) or _env_language() or _system_language() or DEFAULT_LANGUAGE
+    code = (normalize_language(explicit)
+            or normalize_language(_env_language())
+            or normalize_language(_system_language())
+            or FALLBACK_LANGUAGE)
     pack = _load(code)
     if not pack and code != DEFAULT_LANGUAGE:
         _warn_once(f"empty:{code}", f"语言包 {code} 为空，回退 {DEFAULT_LANGUAGE}")
@@ -142,7 +150,7 @@ def resolve_language(explicit: Optional[str] = None) -> str:
 
 
 def set_language(lang: Optional[str] = None) -> str:
-    """设置当前语言；``None`` 表示按环境变量 / 系统语言自动判断。"""
+    """设置当前语言；``None`` 表示按环境变量 / 系统语言自动判断（未知系统用英文）。"""
     global _CURRENT, _INITIALIZED
     _CURRENT = resolve_language(lang)
     _INITIALIZED = True
