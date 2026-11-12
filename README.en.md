@@ -82,7 +82,7 @@ Get `ulpp.exe` from [Releases](../../releases), double-click it, and no Python i
 ### 2. Run from source
 
 ```bash
-git clone https://github.com/<your-name>/ulpp.git
+git clone https://github.com/Imensama/ulpp.git
 cd ulpp
 pip install -r requirements.txt
 pip install -e .            # makes `python -m ulpp` find the package in src/

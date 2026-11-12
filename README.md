@@ -82,7 +82,7 @@ Windows 下双击 exe 就能用，也能命令行批量跑。
 ### 2. 源码运行
 
 ```bash
-git clone https://github.com/<your-name>/ulpp.git
+git clone https://github.com/Imensama/ulpp.git
 cd ulpp
 pip install -r requirements.txt
 pip install -e .            # 让 python -m ulpp 找到 src 下的包
@@ -237,7 +237,7 @@ ulpp/
 ```bash
 pip install -r requirements.txt
 pip install -e .
-python -m unittest discover -s tests -t .   # 73 个用例
+python -m unittest discover -s tests -t .   # 82 个用例
 ```
 
 ```powershell
