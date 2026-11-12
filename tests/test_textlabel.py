@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""文字标签排版 + 胶贴规格预设的单元测试。"""
+"""文字标签排版 + 标签纸规格预设的单元测试。"""
 
 import unittest
 
-from label_sheet.config import GridSpec
-from label_sheet.presets import PRESETS, by_key, keys, match_grid
-from label_sheet.textlabel import fit_size, parse_text_block, render_text_label
+from ulpp.config import GridSpec
+from ulpp.presets import PRESETS, by_key, keys, match_grid
+from ulpp.textlabel import fit_size, parse_text_block, render_text_label
 
 
 class TestParseTextBlock(unittest.TestCase):

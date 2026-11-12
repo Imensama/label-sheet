@@ -15,14 +15,14 @@ import traceback
 
 def _log_path() -> str:
     base = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
-    return os.path.join(base, "label_sheet.log")
+    return os.path.join(base, "ulpp.log")
 
 
 def _redirect_streams() -> None:
     if sys.stdout is not None and sys.stderr is not None:
         return
     try:
-        path = os.path.join(tempfile.gettempdir(), "label_sheet.log")
+        path = os.path.join(tempfile.gettempdir(), "ulpp.log")
         stream = open(path, "a", encoding="utf-8", buffering=1)
     except Exception:  # pragma: no cover
         import io
@@ -45,14 +45,14 @@ def _language_from_argv():
 
 def _show_error(err: str) -> None:
     try:
-        from label_sheet.i18n import set_language, tr
+        from ulpp.i18n import set_language, tr
 
         set_language(_language_from_argv())
         title = tr("entry.error_title")
         message = tr("entry.error_body", error=err)
     except Exception:  # pragma: no cover - 包都坏了就退回双语提示
-        title = "标签排版 / Label Sheet"
-        message = f"程序出错了 / Something went wrong:\n\n{err}\n\n详细日志 / Details: label_sheet.log"
+        title = "通用标签打印平台 / Universal Label Printing Platform"
+        message = f"程序出错了 / Something went wrong:\n\n{err}\n\n详细日志 / Details: ulpp.log"
     try:
         import tkinter as tk
         from tkinter import messagebox
@@ -74,7 +74,7 @@ def main() -> int:
         if src not in sys.path:
             sys.path.insert(0, src)
     try:
-        from label_sheet.__main__ import main as app_main
+        from ulpp.__main__ import main as app_main
 
         return app_main()
     except SystemExit:

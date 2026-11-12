@@ -10,8 +10,8 @@ from contextlib import redirect_stdout
 from string import Formatter
 from unittest import mock
 
-from label_sheet import cli
-from label_sheet.i18n import (
+from ulpp import cli
+from ulpp.i18n import (
     available_languages,
     current_language,
     load_pack,
@@ -19,7 +19,7 @@ from label_sheet.i18n import (
     set_language,
     tr,
 )
-from label_sheet.presets import PRESETS, by_key
+from ulpp.presets import PRESETS, by_key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -58,8 +58,8 @@ class TestLanguagePacks(unittest.TestCase):
 
     def test_every_tr_key_exists(self):
         packs = load_pack("zh_CN")
-        sources = [os.path.join(SRC, "label_sheet", name)
-                   for name in os.listdir(os.path.join(SRC, "label_sheet"))
+        sources = [os.path.join(SRC, "ulpp", name)
+                   for name in os.listdir(os.path.join(SRC, "ulpp"))
                    if name.endswith(".py")]
         sources.append(os.path.join(ROOT, "packaging", "entry.py"))
         used = set()
@@ -78,7 +78,7 @@ class TestLanguagePacks(unittest.TestCase):
         self.assertTrue(load_pack(code))
 
     def test_unknown_system_language_defaults_to_english(self):
-        from label_sheet import i18n
+        from ulpp import i18n
 
         with mock.patch.object(i18n, "_env_language", return_value=None), \
                 mock.patch.object(i18n, "_system_language", return_value=None):
@@ -89,7 +89,7 @@ class TestLanguagePacks(unittest.TestCase):
             self.assertEqual(i18n.resolve_language(), "en_US")
 
     def test_system_chinese_stays_chinese(self):
-        from label_sheet import i18n
+        from ulpp import i18n
 
         with mock.patch.object(i18n, "_env_language", return_value=None), \
                 mock.patch.object(i18n, "_system_language", return_value="zh_CN"):
@@ -155,15 +155,15 @@ class TestLanguagePacks(unittest.TestCase):
         self.assertIsNone(CJK_RE.search(out), "英文 --help 不应出现中文")
 
     def test_lang_only_opens_gui(self):
-        import label_sheet.__main__ as app_main
-        import label_sheet.gui as gui
+        import ulpp.__main__ as app_main
+        import ulpp.gui as gui
 
         calls = []
         original = gui.main
         gui.main = lambda: calls.append(current_language())
         original_argv = sys.argv
         try:
-            sys.argv = ["label-sheet", "--lang", "en"]
+            sys.argv = ["ulpp", "--lang", "en"]
             app_main.main()
         finally:
             gui.main = original

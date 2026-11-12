@@ -3,8 +3,8 @@
 
 import unittest
 
-from label_sheet.builder import collect_stickers
-from label_sheet.parser import Card, PageCards, PdfCards, parse_card_text
+from ulpp.builder import collect_stickers
+from ulpp.parser import Card, PageCards, PdfCards, parse_card_text
 
 
 def _card(name: str, qty: int, row: int, col: int) -> Card:

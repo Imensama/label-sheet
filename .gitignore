@@ -9,8 +9,11 @@ dist/
 *.spec.bak
 
 # 打包 / 测试产物
-label_sheet_test_*/
-label_sheet_zip_*/
+ulpp_test_*/
+ulpp_zip_*/
+ulpp_sheets_test_*/
+ulpp_partial_test_*/
+ulpp_cal_test_*/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -22,11 +25,16 @@ debug.log
 *.swp
 
 # 运行产物
-*_生产版.pdf
-*_刀线校样版.pdf
+*_打印版.pdf
+*_网格参考版.pdf
 *_标签清单.csv
-*_production.pdf
-*_knife-proof.pdf
-*_manifest.csv
+*_接着打.pdf
+*_接着打清单.csv
+*_print.pdf
+*_grid-reference.pdf
+*_label-list.csv
+*_continue.pdf
+*_continue-list.csv
 标签输出/
 label-output/
+

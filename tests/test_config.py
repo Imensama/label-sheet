@@ -3,7 +3,7 @@
 
 import unittest
 
-from label_sheet.config import GridSpec, MM_TO_PT
+from ulpp.config import GridSpec, MM_TO_PT
 
 
 class TestGridSpec(unittest.TestCase):

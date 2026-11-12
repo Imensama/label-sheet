@@ -3,7 +3,7 @@
 # 用法：在仓库根目录执行
 #     powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 #
-# 产物：dist\标签排版.exe
+# 产物：dist\ulpp.exe
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -20,8 +20,8 @@ python -m unittest discover -s tests -t .
 Write-Host "== 3/3 打包 ==" -ForegroundColor Cyan
 if (Test-Path build) { Remove-Item build -Recurse -Force }
 if (Test-Path dist) { Remove-Item dist -Recurse -Force }
-pyinstaller packaging\label_sheet.spec --noconfirm
+pyinstaller packaging\ulpp.spec --noconfirm
 
 Write-Host ""
-Write-Host "完成：$root\dist\标签排版.exe" -ForegroundColor Green
+Write-Host "完成：$root\dist\ulpp.exe" -ForegroundColor Green
 Get-ChildItem dist | Format-Table Name, Length, LastWriteTime -AutoSize

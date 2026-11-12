@@ -74,8 +74,8 @@ def screenshot(root, path):
 
 
 def main() -> int:
-    from label_sheet.gui import App, _HAS_DND, TkinterDnD
-    from label_sheet.i18n import current_language, set_language
+    from ulpp.gui import App, _HAS_DND, TkinterDnD
+    from ulpp.i18n import current_language, set_language
 
     set_language("zh_CN")
     root = TkinterDnD.Tk() if _HAS_DND else tk.Tk()
@@ -86,7 +86,7 @@ def main() -> int:
     zh_texts = visible_texts(root)
     assert any(CJK_RE.search(t) for t in zh_texts), "中文界面应该有中文"
     shot_dir = os.environ.get("GUI_SMOKE_SHOT_DIR", tempfile.gettempdir())
-    screenshot(root, os.path.join(shot_dir, "label_sheet_gui_zh.png"))
+    screenshot(root, os.path.join(shot_dir, "ulpp_gui_zh.png"))
 
     app.text_box.insert("1.0", "TEST A-01 |2\nREWORK")
     app._switch_language("en_US")
@@ -110,7 +110,7 @@ def main() -> int:
     print("en start:", app.start_btn.cget("text"))
     print("en status:", app.status.get())
     print("en language:", current_language())
-    screenshot(root, os.path.join(shot_dir, "label_sheet_gui_en.png"))
+    screenshot(root, os.path.join(shot_dir, "ulpp_gui_en.png"))
 
     app._switch_language("zh_CN")
     root.update()

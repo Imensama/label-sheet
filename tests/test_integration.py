@@ -12,12 +12,12 @@ import unittest
 
 from pypdf import PdfReader
 
-from label_sheet.builder import build_all, collect_entries, collect_stickers
-from label_sheet.i18n import set_language
-from label_sheet.presets import by_key
-from label_sheet.textlabel import parse_text_block
-from label_sheet.config import GridSpec
-from label_sheet.parser import parse_pdf
+from ulpp.builder import build_all, collect_entries, collect_stickers
+from ulpp.i18n import set_language
+from ulpp.presets import by_key
+from ulpp.textlabel import parse_text_block
+from ulpp.config import GridSpec
+from ulpp.parser import parse_pdf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE = os.path.join(os.path.dirname(HERE), "examples", "sample.pdf")
@@ -51,7 +51,7 @@ class TestIntegration(unittest.TestCase):
 
     def test_build(self):
         grid = GridSpec()
-        tmp = os.path.join(os.path.dirname(HERE), f"label_sheet_test_{uuid.uuid4().hex[:8]}")
+        tmp = os.path.join(os.path.dirname(HERE), f"ulpp_test_{uuid.uuid4().hex[:8]}")
         os.makedirs(tmp, exist_ok=True)
         self.addCleanup(shutil.rmtree, tmp, True)   # ignore_errors=True
         outs = build_all([self.parsed], grid, tmp, base_name="t")
@@ -77,7 +77,7 @@ class TestIntegration(unittest.TestCase):
         items = parse_text_block("急件 A-01 |2\n返修件\n2026-11-09 出货")
         self.assertEqual(len(items), 3)
         grid = by_key("24格 70×37（3×8）").to_grid()
-        tmp = os.path.join(os.path.dirname(HERE), "label_sheet_test_text")
+        tmp = os.path.join(os.path.dirname(HERE), "ulpp_test_text")
         os.makedirs(tmp, exist_ok=True)
         self.addCleanup(shutil.rmtree, tmp, True)
         outs = build_all([], grid, tmp, base_name="t", text_items=items)
