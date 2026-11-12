@@ -1,0 +1,41 @@
+name: publish-pypi
+
+# 打 tag（v1.3.2 这种）时自动上传到 PyPI。
+# 用 Trusted Publishing（OIDC），不需要 API token —— 前提是在 PyPI 项目页
+# Settings → Publishing 里加过这个仓库。仓库对不上会 403。
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write          # Trusted Publishing 必需
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: tag 必须等于 pyproject 里的版本（否则 PyPI 会 400）
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(grep -m1 '^version *= *' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "tag=$TAG  pyproject=$VER"
+          if [ "$TAG" != "$VER" ]; then
+            echo "::error::tag($TAG) 与 pyproject 版本($VER) 不一致，先改版本号再打 tag"
+            exit 1
+          fi
+
+  publish:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
